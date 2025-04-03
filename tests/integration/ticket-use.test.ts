@@ -5,7 +5,7 @@ import { createTicket } from "../factories/ticketFactory";
 
 const agent = supertest(app);
 
-beforeEach(async () => {
+beforeAll(async () => {
   await prisma.$executeRaw`TRUNCATE TABLE tickets RESTART IDENTITY CASCADE`;
   await prisma.$executeRaw`TRUNCATE TABLE events RESTART IDENTITY CASCADE`;
 });
@@ -17,6 +17,10 @@ afterAll(async () => {
 describe("PUT /tickets/use/:id", () => {
   it("should mark the ticket as used and return 204", async () => {
     const ticket = await createTicket();
+    const checkTicket = await prisma.ticket.findUnique({
+      where: { id: ticket.id },
+    });
+    expect(checkTicket).not.toBeNull();
 
     const response = await agent.put(`/tickets/use/${ticket.id}`);
     expect(response.status).toBe(204);

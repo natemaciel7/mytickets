@@ -6,7 +6,7 @@ import { faker } from "@faker-js/faker";
 
 const agent = supertest(app);
 
-beforeEach(async () => {
+beforeAll(async () => {
   await prisma.$executeRaw`TRUNCATE TABLE tickets RESTART IDENTITY CASCADE`;
   await prisma.$executeRaw`TRUNCATE TABLE events RESTART IDENTITY CASCADE`;
 });
@@ -18,6 +18,11 @@ afterAll(async () => {
 describe("POST /tickets", () => {
   it("should create a new ticket and return 201", async () => {
     const event = await createEvent();
+    const checkEvent = await prisma.event.findUnique({
+      where: { id: event.id },
+    });
+    expect(checkEvent).not.toBeNull();
+
     const ticket = {
       code: faker.string.uuid(),
       owner: faker.person.fullName(),
