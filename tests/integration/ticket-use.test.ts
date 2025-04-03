@@ -15,11 +15,11 @@ afterAll(async () => {
 });
 
 describe("PUT /tickets/use/:id", () => {
-  it("should mark the ticket as used and return 200", async () => {
+  it("should mark the ticket as used and return 204", async () => {
     const ticket = await createTicket();
 
     const response = await agent.put(`/tickets/use/${ticket.id}`);
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(204);
 
     const updatedTicket = await prisma.ticket.findUnique({
       where: { id: ticket.id },
