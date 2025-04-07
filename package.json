@@ -10,6 +10,7 @@
     "migration:run": "prisma migrate deploy",
     "seed": "prisma db seed",
     "test": "jest",
+    "test:coverage": "dotenv -e .env.test -- jest --coverage --runInBand",
     "test:env": "dotenv -e .env.test -- jest --runInBand"
   },
   "keywords": [],

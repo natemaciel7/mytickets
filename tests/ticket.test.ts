@@ -10,21 +10,20 @@ beforeEach(async () => {
   await cleanDb();
 });
 
-async function ensureEventPersisted(event: any) {
-  let confirmed = null;
-  let retries = 0;
-  while (!confirmed && retries < 5) {
-    confirmed = await prisma.event.findUnique({ where: { id: event.id } });
-    if (!confirmed) await new Promise((r) => setTimeout(r, 50));
-    retries++;
-  }
-  return confirmed;
-}
-
 describe("POST /tickets", () => {
   it("deve criar um ticket e retornar status 201", async () => {
     const event = await createEvent();
-    await ensureEventPersisted(event);
+
+    // Espera o evento ser persistido
+    let confirmedEvent = null;
+    let retry = 0;
+    while (!confirmedEvent && retry < 5) {
+      confirmedEvent = await prisma.event.findUnique({
+        where: { id: event.id },
+      });
+      if (!confirmedEvent) await new Promise((r) => setTimeout(r, 50));
+      retry++;
+    }
 
     const body = {
       owner: "Natália Teste",
@@ -45,6 +44,13 @@ describe("POST /tickets", () => {
         used: false,
       })
     );
+
+    const ticketInDb = await prisma.ticket.findUnique({
+      where: { id: response.body.id },
+    });
+
+    expect(ticketInDb).not.toBeNull();
+    expect(ticketInDb?.owner).toBe(body.owner);
   });
 
   it("deve retornar 404 se o evento não existir", async () => {
@@ -53,16 +59,20 @@ describe("POST /tickets", () => {
       code: "ZXC9876543",
       eventId: 99999,
     });
+
     expect(response.status).toBe(404);
   });
 
   it("deve retornar 409 se o código do ticket já existir para o evento", async () => {
     const event = await createEvent();
-    await ensureEventPersisted(event);
-
     const code = "DUPLICADO123";
+
     await prisma.ticket.create({
-      data: { owner: "Repetido", code, eventId: event.id },
+      data: {
+        owner: "Repetido",
+        code,
+        eventId: event.id,
+      },
     });
 
     const response = await server.post("/tickets").send({
@@ -79,7 +89,7 @@ describe("POST /tickets", () => {
 describe("GET /tickets/:eventId", () => {
   it("deve retornar 200 e uma lista de tickets para o evento", async () => {
     const event = await createEvent();
-    await ensureEventPersisted(event);
+    console.log("Evento para GET:", event);
 
     const ticket1 = await prisma.ticket.create({
       data: { owner: "Ticket 1", code: "UNICO1", eventId: event.id },
@@ -90,6 +100,7 @@ describe("GET /tickets/:eventId", () => {
     });
 
     const response = await server.get(`/tickets/${event.id}`);
+
     expect(response.status).toBe(200);
     expect(response.body).toEqual(
       expect.arrayContaining([
@@ -101,6 +112,7 @@ describe("GET /tickets/:eventId", () => {
 
   it("deve retornar 200 e lista vazia se o evento não existir", async () => {
     const response = await server.get("/tickets/99999");
+
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
   });
@@ -109,8 +121,6 @@ describe("GET /tickets/:eventId", () => {
 describe("PUT /tickets/use/:id", () => {
   it("deve marcar um ticket como usado e retornar 204", async () => {
     const event = await createEvent();
-    await ensureEventPersisted(event);
-
     const ticket = await prisma.ticket.create({
       data: {
         owner: "Usar Agora",
@@ -134,6 +144,7 @@ describe("PUT /tickets/use/:id", () => {
 
   it("deve retornar 404 se o ticket não existir", async () => {
     const response = await server.put("/tickets/use/99999");
+
     expect(response.status).toBe(404);
   });
 });

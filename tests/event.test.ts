@@ -1,8 +1,8 @@
 import supertest from "supertest";
 import app from "../src/app";
+import prisma from "../src/database";
 import { cleanDb } from "./helpers";
 import { faker } from "@faker-js/faker";
-import prisma from "../src/database";
 import { createEvent } from "../factories/eventFactory";
 
 const server = supertest(app);
@@ -48,6 +48,7 @@ describe("GET /events/:id", () => {
 
   it("deve retornar 404 se o evento não existir", async () => {
     const response = await server.get("/events/99999");
+
     expect(response.status).toBe(404);
   });
 });
@@ -62,16 +63,6 @@ describe("POST /events", () => {
     const response = await server.post("/events").send(body);
     console.log("Evento criado:", response.body);
 
-    let confirmed = null;
-    let retry = 0;
-    while (!confirmed && retry < 5) {
-      confirmed = await prisma.event.findUnique({
-        where: { id: response.body.id },
-      });
-      if (!confirmed) await new Promise((r) => setTimeout(r, 50));
-      retry++;
-    }
-
     expect(response.status).toBe(201);
     expect(response.body).toEqual(
       expect.objectContaining({
@@ -82,10 +73,11 @@ describe("POST /events", () => {
     );
 
     const eventInDb = await prisma.event.findUnique({
-      where: { name: body.name },
+      where: { id: response.body.id },
     });
 
     expect(eventInDb).not.toBeNull();
+    expect(eventInDb?.name).toBe(body.name);
   });
 
   it("deve retornar 422 se os dados forem inválidos", async () => {
@@ -98,12 +90,12 @@ describe("POST /events", () => {
 });
 
 describe("PUT /events/:id", () => {
-  it("deve atualizar um evento existente", async () => {
+  it("deve atualizar um evento existente e refletir no banco", async () => {
     const event = await createEvent();
     console.log("Evento para update:", event);
 
     const newData = {
-      name: "Evento Atualizado",
+      name: faker.lorem.words(2),
       date: faker.date.future().toISOString(),
     };
 
@@ -117,6 +109,12 @@ describe("PUT /events/:id", () => {
         date: expect.any(String),
       })
     );
+
+    const updated = await prisma.event.findUnique({
+      where: { id: event.id },
+    });
+
+    expect(updated?.name).toBe(newData.name);
   });
 
   it("deve retornar 404 se o evento não existir", async () => {
@@ -130,22 +128,23 @@ describe("PUT /events/:id", () => {
 });
 
 describe("DELETE /events/:id", () => {
-  it("deve deletar um evento existente e retornar 200 ou 204", async () => {
+  it("deve deletar um evento existente e verificar remoção no banco", async () => {
     const event = await createEvent();
 
     const response = await server.delete(`/events/${event.id}`);
 
     expect([200, 204]).toContain(response.status);
 
-    const eventInDb = await prisma.event.findUnique({
+    const deleted = await prisma.event.findUnique({
       where: { id: event.id },
     });
 
-    expect(eventInDb).toBeNull();
+    expect(deleted).toBeNull();
   });
 
   it("deve retornar 404 se o evento não existir", async () => {
     const response = await server.delete("/events/99999");
+
     expect(response.status).toBe(404);
   });
 });
